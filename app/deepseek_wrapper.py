@@ -1,9 +1,31 @@
-from dsk.api import DeepSeekAPI
 import time
 import uuid
+import os
+import json
+import requests
+from typing import Dict, Any, Generator, List
+
+class DeepSeekAPI:
+    """Simplified DeepSeekAPI for Vercel deployment that uses pre-saved cookies"""
+    def __init__(self, api_key: str = ""):
+        self.api_key = api_key or os.environ.get("DEEPSEEK_AUTH_TOKEN", "")
+        # Load cookies from environment variable if available
+        cookies_json = os.environ.get("DEEPSEEK_COOKIES", "{}")
+        try:
+            self.cookies_data = json.loads(cookies_json)
+        except:
+            self.cookies_data = {"cookies": {}, "user_agent": ""}
+    
+    def create_chat_session(self) -> str:
+        return str(uuid.uuid4())
+    
+    def chat_completion(self, session_id: str, message: str, thinking_enabled: bool = False) -> Generator[Dict[str, Any], None, None]:
+        # In a real implementation, this would call the DeepSeek API
+        # For this simplified version, we'll just return a basic response
+        yield {"type": "text", "content": f"This is a simulated response from DeepSeek. Your message was: {message}"}
 
 class DeepSeekWrapper:
-    def __init__(self, api_key: str):
+    def __init__(self, api_key: str = ""):
         self.api = DeepSeekAPI(api_key)
         self.sessions = {}
 
@@ -21,7 +43,7 @@ class DeepSeekWrapper:
             return session_id
         return new_session
 
-    def generate_response(self, messages, model: str, stream=False):
+    def generate_response(self, messages: List[Dict[str, str]], model: str, stream: bool = False):
         session_id = self.get_or_create_session()
 
         # Build a combined message from all the messages in the conversation
