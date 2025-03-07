@@ -5,10 +5,15 @@ import json
 import time
 import uuid
 import os
+import logging
 from pathlib import Path
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from .deepseek_wrapper import DeepSeekWrapper
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = FastAPI()
 
@@ -97,9 +102,20 @@ async def list_models():
     return response
 
 async def stream_response(generator):
-    for chunk in generator:
-        yield f"data: {json.dumps(chunk)}\n\n"
-    yield "data: [DONE]\n\n"
+    try:
+        for chunk in generator:
+            # Add logging to see what's being yielded
+            logger.info(f"Yielding chunk: {json.dumps(chunk)[:100]}...")
+            yield f"data: {json.dumps(chunk)}\n\n"
+        yield "data: [DONE]\n\n"
+    except Exception as e:
+        logger.error(f"Stream error: {str(e)}")
+        error_json = {
+            "error": True,
+            "message": str(e)
+        }
+        yield f"data: {json.dumps(error_json)}\n\n"
+        yield "data: [DONE]\n\n"
 
 @app.post("/v1/chat/completions")
 async def create_chat_completion(request: Request):
@@ -127,19 +143,30 @@ async def create_chat_completion(request: Request):
             response = deepseek.generate_response(processed_messages, model, stream)
 
             if stream:
+                # Modified: Better error handling for streaming response
                 return StreamingResponse(
                     stream_response(response),
-                    media_type="text/event-stream"
+                    media_type="text/event-stream",
+                    headers={
+                        "Cache-Control": "no-cache",
+                        "Connection": "keep-alive"
+                    }
                 )
             return response
 
         except Exception as e:
+            import traceback
+            error_trace = traceback.format_exc()
+            logger.error(f"Generation error: {str(e)}\n{error_trace}")
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Generation failed: {str(e)}"}
             )
 
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        logger.error(f"Request processing error: {str(e)}\n{error_trace}")
         return JSONResponse(
             status_code=500,
             content={"error": f"Request processing failed: {str(e)}"}

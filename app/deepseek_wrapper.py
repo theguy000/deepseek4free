@@ -46,27 +46,50 @@ class DeepSeekAPI:
             stream=True
         )
 
-        for line in response.iter_lines():
-            if line:
-                try:
-                    data = json.loads(line.decode('utf-8').replace('data: ', ''))
-                    if 'choices' in data and data['choices']:
-                        choice = data['choices'][0]
-                        if 'delta' in choice and 'content' in choice['delta']:
-                            yield {
-                                "id": data.get("id", f"chatcmpl-{uuid.uuid4()}"),
-                                "object": "chat.completion.chunk",
-                                "created": data.get("created", int(time.time())),
-                                "model": "deepseek-chat",
-                                "choices": [{
-                                    "delta": {"content": choice['delta']['content']},
-                                    "finish_reason": choice.get('finish_reason'),
-                                    "index": 0
-                                }]
-                            }
-                except Exception as e:
-                    print(f"Error parsing chunk: {e}")
-                    continue
+        # Changed: Properly handle the streaming response
+        if response.status_code == 200:
+            for line in response.iter_lines():
+                if line:
+                    try:
+                        # Remove the 'data: ' prefix if it exists
+                        text = line.decode('utf-8')
+                        if text.startswith('data: '):
+                            text = text[6:]
+                        
+                        if text and text != '[DONE]':
+                            data = json.loads(text)
+                            if 'choices' in data and data['choices']:
+                                choice = data['choices'][0]
+                                if 'delta' in choice and 'content' in choice['delta']:
+                                    yield {
+                                        "id": data.get("id", f"chatcmpl-{uuid.uuid4()}"),
+                                        "object": "chat.completion.chunk",
+                                        "created": data.get("created", int(time.time())),
+                                        "model": "deepseek-chat",
+                                        "choices": [{
+                                            "delta": {"content": choice['delta']['content']},
+                                            "finish_reason": choice.get('finish_reason'),
+                                            "index": 0
+                                        }]
+                                    }
+                    except Exception as e:
+                        print(f"Error parsing chunk: {e}")
+                        continue
+        else:
+            # Handle error response
+            error_message = f"API Error: {response.status_code} - {response.text}"
+            print(error_message)
+            yield {
+                "id": f"error-{uuid.uuid4()}",
+                "object": "chat.completion.chunk",
+                "created": int(time.time()),
+                "model": "deepseek-chat",
+                "choices": [{
+                    "delta": {"content": f"Error: {error_message}"},
+                    "finish_reason": "error",
+                    "index": 0
+                }]
+            }
 
 class DeepSeekWrapper:
     def __init__(self, api_key: str):
