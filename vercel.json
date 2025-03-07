@@ -16,11 +16,15 @@
       "dest": "/static/$1"
     },
     {
+      "handle": "filesystem"
+    },
+    {
       "src": "/(.*)",
       "dest": "app/main.py"
     }
   ],
   "env": {
-    "PYTHONPATH": "."
+    "PYTHONPATH": ".",
+    "PYTHONUNBUFFERED": "1"
   }
 }

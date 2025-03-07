@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import StreamingResponse, JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 import json
 import time
@@ -25,10 +24,6 @@ app.add_middleware(
 # Hardcoded API key - replace with your actual token
 API_KEY = "2zZ7MaVSH+lhKHhrizBi73yAZ26TE+gZPbj/Pxje7QjLezqwqfU4YDsA1fX8eYIv"
 deepseek = DeepSeekWrapper(API_KEY)
-
-# Mount static files directory
-static_path = Path(__file__).parent.parent / "static"
-app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # Pydantic models
 class ChatMessage(BaseModel):
@@ -70,7 +65,15 @@ class ModelListResponse(BaseModel):
 @app.get("/")
 async def root():
     """Serve the chat interface"""
-    return FileResponse(str(static_path / "index.html"))
+    try:
+        with open("static/index.html", "r") as f:
+            content = f.read()
+        return HTMLResponse(content=content)
+    except Exception:
+        # Fallback for Vercel environment
+        return JSONResponse(
+            content={"message": "API is running. Use /v1/chat/completions endpoint."}
+        )
 
 @app.get("/v1/models")
 async def list_models():
@@ -101,7 +104,6 @@ async def stream_response(generator):
 @app.post("/v1/chat/completions")
 async def create_chat_completion(request: Request):
     try:
-        # Parse the request
         data = await request.json()
 
         # Process the messages
@@ -112,39 +114,33 @@ async def create_chat_completion(request: Request):
                 "content": msg.get("content", "")
             })
 
-        # Check if we have any messages
         if not processed_messages:
             return JSONResponse(
                 status_code=400,
                 content={"error": "No messages provided"}
             )
 
-        # Get parameters
         model = data.get("model", "deepseek-chat")
         stream = data.get("stream", False)
 
-        # Generate response
-        response = deepseek.generate_response(processed_messages, model, stream)
+        try:
+            response = deepseek.generate_response(processed_messages, model, stream)
 
-        # Return streaming or complete response
-        if stream:
-            return StreamingResponse(
-                stream_response(response),
-                media_type="text/event-stream"
+            if stream:
+                return StreamingResponse(
+                    stream_response(response),
+                    media_type="text/event-stream"
+                )
+            return response
+
+        except Exception as e:
+            return JSONResponse(
+                status_code=500,
+                content={"error": f"Generation failed: {str(e)}"}
             )
-        return response
 
     except Exception as e:
-        import traceback
-        error_detail = traceback.format_exc()
         return JSONResponse(
             status_code=500,
-            content={
-                "error": f"Error processing request: {str(e)}",
-                "detail": error_detail
-            }
+            content={"error": f"Request processing failed: {str(e)}"}
         )
-
-# Vercel serverless handler
-def handler(request, response):
-    return app
