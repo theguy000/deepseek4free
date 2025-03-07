@@ -1,18 +1,34 @@
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse, JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import time
 import uuid
 import os
+from pathlib import Path
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from .deepseek_wrapper import DeepSeekWrapper
 
 app = FastAPI()
 
-# Get the API key from environment variables
-api_key = os.environ.get("DEEPSEEK_AUTH_TOKEN", "")
-deepseek = DeepSeekWrapper(api_key)
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Hardcoded API key - replace with your actual token
+API_KEY = "2zZ7MaVSH+lhKHhrizBi73yAZ26TE+gZPbj/Pxje7QjLezqwqfU4YDsA1fX8eYIv"
+deepseek = DeepSeekWrapper(API_KEY)
+
+# Mount static files directory
+static_path = Path(__file__).parent.parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_path)), name="static")
 
 # Pydantic models
 class ChatMessage(BaseModel):
@@ -53,7 +69,8 @@ class ModelListResponse(BaseModel):
 
 @app.get("/")
 async def root():
-    return {"message": "DeepSeek API wrapper is running! Use /v1/chat/completions endpoint."}
+    """Serve the chat interface"""
+    return FileResponse(str(static_path / "index.html"))
 
 @app.get("/v1/models")
 async def list_models():
@@ -86,7 +103,7 @@ async def create_chat_completion(request: Request):
     try:
         # Parse the request
         data = await request.json()
-        
+
         # Process the messages
         processed_messages = []
         for msg in data.get("messages", []):
@@ -94,21 +111,21 @@ async def create_chat_completion(request: Request):
                 "role": msg.get("role", "user"),
                 "content": msg.get("content", "")
             })
-        
+
         # Check if we have any messages
         if not processed_messages:
             return JSONResponse(
                 status_code=400,
                 content={"error": "No messages provided"}
             )
-        
+
         # Get parameters
         model = data.get("model", "deepseek-chat")
         stream = data.get("stream", False)
-        
+
         # Generate response
         response = deepseek.generate_response(processed_messages, model, stream)
-        
+
         # Return streaming or complete response
         if stream:
             return StreamingResponse(
@@ -116,7 +133,7 @@ async def create_chat_completion(request: Request):
                 media_type="text/event-stream"
             )
         return response
-        
+
     except Exception as e:
         import traceback
         error_detail = traceback.format_exc()
