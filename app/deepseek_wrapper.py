@@ -9,14 +9,24 @@ logger = logging.getLogger(__name__)
 class DeepSeekWrapper:
     def __init__(self, auth_token):
         self.auth_token = auth_token
-        self.api = DeepSeekAPI(auth_token)
+        try:
+            from dsk.api import DeepSeekAPI
+            self.api = DeepSeekAPI(auth_token)
+        except Exception as e:
+            logger.warning(f"Could not initialize DeepSeekAPI: {e}")
+            self.api = None
         self.chat_sessions = {}  # Store active chat sessions
 
     def refresh_cookies(self):
         """Refresh the cookies used for DeepSeek API requests"""
         logger.info("Refreshing DeepSeek API cookies")
         try:
+            # In serverless, return a dummy success response
+            if self.api is None:
+                return {"success": True, "message": "Dummy cookie refresh (serverless mode)"}
+            
             # Recreate the DeepSeekAPI instance to force it to reload cookies
+            from dsk.api import DeepSeekAPI
             self.api = DeepSeekAPI(self.auth_token)
             logger.info("Cookies refreshed successfully")
             return True
@@ -26,18 +36,56 @@ class DeepSeekWrapper:
 
     def generate_response(self, messages, model, stream=False):
         """
-        Generate a response using the DeepSeek API
-
-        Args:
-            messages (list): List of message dictionaries with 'role' and 'content'
-            model (str): Model to use for generation
-            stream (bool): Whether to stream the response
-
-        Returns:
-            Either a complete response object or a generator for streaming
+        Generate a response using the DeepSeek API or return a fallback response
+        if in serverless environment
         """
         logger.info(f"Generating response with model: {model}, stream: {stream}")
 
+        # Add fallback for serverless environment
+        if self.api is None:
+            fallback_msg = "This is a serverless environment where the DeepSeek API can't run directly. Please use the hosted version or run locally."
+            if not stream:
+                import uuid
+                import time
+                return {
+                    "id": f"chatcmpl-{uuid.uuid4()}",
+                    "object": "chat.completion",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {
+                                "role": "assistant",
+                                "content": fallback_msg
+                            },
+                            "finish_reason": "stop"
+                        }
+                    ]
+                }
+            else:
+                def generate_fallback():
+                    import uuid
+                    import time
+                    response_id = f"chatcmpl-{uuid.uuid4()}"
+                    yield {
+                        "id": response_id,
+                        "object": "chat.completion.chunk",
+                        "created": int(time.time()),
+                        "model": model,
+                        "choices": [
+                            {
+                                "index": 0,
+                                "delta": {
+                                    "content": fallback_msg
+                                },
+                                "finish_reason": "stop"
+                            }
+                        ]
+                    }
+                return generate_fallback()
+
+        # Original implementation for non-serverless environment
         try:
             # Get the last user message
             user_message = None

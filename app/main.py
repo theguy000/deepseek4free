@@ -84,11 +84,30 @@ async def root():
         with open("static/index.html", "r") as f:
             content = f.read()
         return HTMLResponse(content=content)
-    except Exception:
+    except Exception as e:
+        logger.warning(f"Could not serve static HTML: {e}")
         # Fallback for Vercel environment
-        return JSONResponse(
-            content={"message": "API is running. Use /v1/chat/completions endpoint."}
-        )
+        return HTMLResponse(content="""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>DeepSeek API Service</title>
+            <style>
+                body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+                .warning { background: #fff3cd; padding: 15px; border-radius: 4px; margin: 20px 0; }
+                .button { display: inline-block; padding: 10px 20px; background: #0066cc; color: white; text-decoration: none; border-radius: 4px; }
+            </style>
+        </head>
+        <body>
+            <h1>DeepSeek API Service</h1>
+            <div class="warning">
+                <p><strong>Note:</strong> This is running in serverless mode where the DeepSeek module cannot execute directly.</p>
+                <p>The API endpoints are still available but will return placeholder responses.</p>
+            </div>
+            <p><a href="/static/index.html" class="button">Try the chat interface</a></p>
+        </body>
+        </html>
+        """)
 
 @app.get("/v1/models")
 async def list_models():
@@ -111,17 +130,17 @@ async def list_models():
     )
     return response
 
-@app.post("/refresh-cookies")
-async def refresh_cookies_endpoint():
+@app.post("/refresh_cookies")
+async def refresh_cookies_handler():
     try:
         # Call your cookie refresh implementation
         result = deepseek.refresh_cookies()
-        return {"status": "success", "message": "Cookies refreshed successfully"}
+        return {"success": True, "message": "Cookies refreshed successfully"}
     except Exception as e:
         logger.error(f"Failed to refresh cookies: {str(e)}")
         return JSONResponse(
             status_code=500,
-            content={"error": f"Failed to refresh cookies: {str(e)}"}
+            content={"success": False, "message": f"Failed to refresh cookies: {str(e)}"}
         )
 
 async def stream_response(generator):

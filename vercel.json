@@ -16,10 +16,6 @@
       "dest": "/static/$1"
     },
     {
-      "src": "/refresh_cookies",
-      "dest": "/api/index.py"
-    },
-    {
       "src": "/(.*)",
       "dest": "/api/index.py"
     }
