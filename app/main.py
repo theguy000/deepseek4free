@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 from .deepseek_wrapper import DeepSeekWrapper
+from .refresh_cookies import router as refresh_router
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +27,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.include_router(refresh_router)
 
 # Hardcoded API key - replace with your actual token
 API_KEY = "2zZ7MaVSH+lhKHhrizBi73yAZ26TE+gZPbj/Pxje7QjLezqwqfU4YDsA1fX8eYIv"
@@ -156,7 +159,7 @@ async def create_chat_completion(request: Request):
                         "Connection": "keep-alive"
                     }
                 )
-                
+
             logger.info("Returning non-streaming response")
             return response
 
