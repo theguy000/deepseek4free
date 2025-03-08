@@ -132,14 +132,17 @@
                     }
                 });
 
+                // Get the response text first
+                const responseText = await response.text();
+                
+                // Then try to parse it as JSON
                 let data;
                 try {
-                    data = await response.json();
+                    data = JSON.parse(responseText);
                 } catch (jsonError) {
                     console.error('Error parsing JSON response:', jsonError);
-                    const textResponse = await response.text();
                     refreshStatus.className = 'status-error';
-                    refreshStatus.textContent = `Error: Invalid response from server. Raw response: ${textResponse.substring(0, 100)}...`;
+                    refreshStatus.textContent = `Error: Invalid response from server. Raw response: ${responseText.substring(0, 100)}${responseText.length > 100 ? '...' : ''}`;
                     return;
                 }
                 
@@ -149,6 +152,12 @@
                 } else {
                     refreshStatus.className = 'status-error';
                     refreshStatus.textContent = `Error: ${data.message || 'Failed to refresh cookies.'}`;
+                    
+                    // Log additional details for debugging
+                    if (data.stdout || data.stderr) {
+                        console.error('Server stdout:', data.stdout);
+                        console.error('Server stderr:', data.stderr);
+                    }
                 }
             } catch (error) {
                 console.error('Error refreshing cookies:', error);
