@@ -132,7 +132,16 @@
                     }
                 });
 
-                const data = await response.json();
+                let data;
+                try {
+                    data = await response.json();
+                } catch (jsonError) {
+                    console.error('Error parsing JSON response:', jsonError);
+                    const textResponse = await response.text();
+                    refreshStatus.className = 'status-error';
+                    refreshStatus.textContent = `Error: Invalid response from server. Raw response: ${textResponse.substring(0, 100)}...`;
+                    return;
+                }
                 
                 if (response.ok && data.success) {
                     refreshStatus.className = 'status-success';

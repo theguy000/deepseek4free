@@ -8,12 +8,20 @@
     {
       "src": "static/**",
       "use": "@vercel/static"
+    },
+    {
+      "src": "dsk/**",
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
       "src": "/static/(.*)",
       "dest": "/static/$1"
+    },
+    {
+      "src": "/refresh_cookies",
+      "dest": "app/main.py"
     },
     {
       "handle": "filesystem"

@@ -2,6 +2,7 @@ import os
 import sys
 import subprocess
 import json
+import traceback
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
@@ -15,13 +16,33 @@ async def refresh_cookies():
         # Adjust path to find the bypass script
         bypass_script = os.path.join(script_dir, "..", "dsk", "bypass.py")
         
+        if not os.path.exists(bypass_script):
+            print(f"Bypass script not found at {bypass_script}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": f"Bypass script not found at {bypass_script}"
+                }
+            )
+        
         # Run the bypass script as a subprocess
-        result = subprocess.run(
-            [sys.executable, bypass_script],
-            capture_output=True,
-            text=True,
-            timeout=180  # 3 minute timeout
-        )
+        try:
+            result = subprocess.run(
+                [sys.executable, bypass_script],
+                capture_output=True,
+                text=True,
+                timeout=180  # 3 minute timeout
+            )
+        except Exception as e:
+            print(f"Error running bypass script: {str(e)}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": f"Error running bypass script: {str(e)}"
+                }
+            )
         
         # Check the exit code to determine success
         if result.returncode == 0:
@@ -73,6 +94,8 @@ async def refresh_cookies():
             }
         )
     except Exception as e:
+        error_trace = traceback.format_exc()
+        print(f"An error occurred: {str(e)}\n{error_trace}")
         return JSONResponse(
             status_code=500,
             content={
