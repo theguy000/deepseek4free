@@ -55,10 +55,49 @@
             background: #f5f5f5;
             margin-right: 20%;
         }
+        .refresh-section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f0f8ff;
+            border-radius: 8px;
+            border: 1px solid #b8daff;
+        }
+        .refresh-button {
+            background: #28a745;
+        }
+        .refresh-button:hover {
+            background: #218838;
+        }
+        #refresh-status {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status-success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .status-error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .status-loading {
+            background-color: #fff3cd;
+            color: #856404;
+        }
     </style>
 </head>
 <body>
     <h1>DeepSeek Chat</h1>
+    
+    <div class="refresh-section">
+        <h3>Cookie Management</h3>
+        <p>If you're having trouble connecting to DeepSeek, try refreshing your cookies:</p>
+        <button id="refresh-button" class="refresh-button" onclick="refreshCookies()">Refresh Cookies</button>
+        <div id="refresh-status"></div>
+    </div>
+    
     <div id="chat-container"></div>
     <div id="input-container">
         <input type="text" id="message-input" placeholder="Type your message...">
@@ -70,12 +109,46 @@
         const chatContainer = document.getElementById('chat-container');
         const messageInput = document.getElementById('message-input');
         const sendButton = document.getElementById('send-button');
+        const refreshButton = document.getElementById('refresh-button');
+        const refreshStatus = document.getElementById('refresh-status');
 
         messageInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter' && !isProcessing) {
                 sendMessage();
             }
         });
+
+        async function refreshCookies() {
+            refreshButton.disabled = true;
+            refreshStatus.className = 'status-loading';
+            refreshStatus.textContent = 'Refreshing cookies... This may take a minute or two.';
+            refreshStatus.style.display = 'block';
+
+            try {
+                const response = await fetch('/refresh_cookies', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+
+                const data = await response.json();
+                
+                if (response.ok && data.success) {
+                    refreshStatus.className = 'status-success';
+                    refreshStatus.textContent = 'Success! Cookies have been refreshed.';
+                } else {
+                    refreshStatus.className = 'status-error';
+                    refreshStatus.textContent = `Error: ${data.message || 'Failed to refresh cookies.'}`;
+                }
+            } catch (error) {
+                console.error('Error refreshing cookies:', error);
+                refreshStatus.className = 'status-error';
+                refreshStatus.textContent = `Error: ${error.message || 'An unknown error occurred.'}`;
+            } finally {
+                refreshButton.disabled = false;
+            }
+        }
 
         async function sendMessage() {
             if (isProcessing || !messageInput.value.trim()) return;
