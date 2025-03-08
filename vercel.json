@@ -2,16 +2,12 @@
   "version": 2,
   "builds": [
     {
-      "src": "app/main.py",
+      "src": "api/index.py",
       "use": "@vercel/python"
     },
     {
       "src": "static/**",
       "use": "@vercel/static"
-    },
-    {
-      "src": "dsk/**",
-      "use": "@vercel/python"
     }
   ],
   "routes": [
@@ -21,14 +17,11 @@
     },
     {
       "src": "/refresh_cookies",
-      "dest": "app/main.py"
-    },
-    {
-      "handle": "filesystem"
+      "dest": "/api/index.py"
     },
     {
       "src": "/(.*)",
-      "dest": "app/main.py"
+      "dest": "/api/index.py"
     }
   ],
   "env": {
