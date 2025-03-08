@@ -21,8 +21,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create a router for the refresh endpoint
-refresh_router = APIRouter()
-
 
 app = FastAPI()
 
@@ -113,6 +111,19 @@ async def list_models():
     )
     return response
 
+@app.post("/refresh-cookies")
+async def refresh_cookies_endpoint():
+    try:
+        # Call your cookie refresh implementation
+        result = deepseek.refresh_cookies()
+        return {"status": "success", "message": "Cookies refreshed successfully"}
+    except Exception as e:
+        logger.error(f"Failed to refresh cookies: {str(e)}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": f"Failed to refresh cookies: {str(e)}"}
+        )
+
 async def stream_response(generator):
     try:
         for chunk in generator:
@@ -174,6 +185,38 @@ async def create_chat_completion(request: Request):
 
         except Exception as e:
             logger.error(f"Generation failed: {str(e)}")
+            
+            # Check if this might be a cookie-related error
+            if "Cloudflare" in str(e) or "cookie" in str(e).lower():
+                logger.info("Attempting to refresh cookies and retry")
+                try:
+                    # Refresh cookies
+                    deepseek.refresh_cookies()
+                    
+                    # Retry the request
+                    response = deepseek.generate_response(processed_messages, model, stream)
+                    
+                    if stream:
+                        logger.info("Returning streaming response after cookie refresh")
+                        return StreamingResponse(
+                            stream_response(response),
+                            media_type="text/event-stream",
+                            headers={
+                                "Cache-Control": "no-cache",
+                                "Connection": "keep-alive"
+                            }
+                        )
+                    
+                    logger.info("Returning non-streaming response after cookie refresh")
+                    return response
+                    
+                except Exception as retry_error:
+                    logger.error(f"Cookie refresh and retry failed: {str(retry_error)}")
+                    return JSONResponse(
+                        status_code=500,
+                        content={"error": f"Cookie refresh failed: {str(retry_error)}"}
+                    )
+            
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Generation failed: {str(e)}"}

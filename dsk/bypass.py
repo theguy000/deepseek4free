@@ -75,7 +75,7 @@ if __name__ == "__main__":
     if server_process:
         # Increase initial wait time to ensure server is fully started
         time.sleep(5)
-        server_url = "http://localhost:8000/cookies?url=https://chat.deepseek.com"
+        server_url = "http://localhost:9000/cookies?url=https://chat.deepseek.com"
         cookie_file = "dsk/cookies.json"
 
         # Increase max retries for more reliability
