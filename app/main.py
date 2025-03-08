@@ -104,12 +104,13 @@ async def list_models():
 async def stream_response(generator):
     try:
         for chunk in generator:
-            # Add logging to see what's being yielded
-            logger.info(f"Yielding chunk: {json.dumps(chunk)[:100]}...")
+            # Log the first few characters of each chunk
+            chunk_preview = json.dumps(chunk)[:50] + "..." if len(json.dumps(chunk)) > 50 else json.dumps(chunk)
+            logger.debug(f"Streaming chunk: {chunk_preview}")
             yield f"data: {json.dumps(chunk)}\n\n"
         yield "data: [DONE]\n\n"
     except Exception as e:
-        logger.error(f"Stream error: {str(e)}")
+        logger.error(f"Error in stream_response: {str(e)}")
         error_json = {
             "error": True,
             "message": str(e)
@@ -120,6 +121,7 @@ async def stream_response(generator):
 @app.post("/v1/chat/completions")
 async def create_chat_completion(request: Request):
     try:
+        logger.info("Received chat completion request")
         data = await request.json()
 
         # Process the messages
@@ -131,6 +133,7 @@ async def create_chat_completion(request: Request):
             })
 
         if not processed_messages:
+            logger.warning("No messages provided in request")
             return JSONResponse(
                 status_code=400,
                 content={"error": "No messages provided"}
@@ -138,12 +141,13 @@ async def create_chat_completion(request: Request):
 
         model = data.get("model", "deepseek-chat")
         stream = data.get("stream", False)
+        logger.info(f"Processing request: model={model}, stream={stream}")
 
         try:
             response = deepseek.generate_response(processed_messages, model, stream)
 
             if stream:
-                # Modified: Better error handling for streaming response
+                logger.info("Returning streaming response")
                 return StreamingResponse(
                     stream_response(response),
                     media_type="text/event-stream",
@@ -152,21 +156,19 @@ async def create_chat_completion(request: Request):
                         "Connection": "keep-alive"
                     }
                 )
+                
+            logger.info("Returning non-streaming response")
             return response
 
         except Exception as e:
-            import traceback
-            error_trace = traceback.format_exc()
-            logger.error(f"Generation error: {str(e)}\n{error_trace}")
+            logger.error(f"Generation failed: {str(e)}")
             return JSONResponse(
                 status_code=500,
                 content={"error": f"Generation failed: {str(e)}"}
             )
 
     except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        logger.error(f"Request processing error: {str(e)}\n{error_trace}")
+        logger.error(f"Request processing failed: {str(e)}")
         return JSONResponse(
             status_code=500,
             content={"error": f"Request processing failed: {str(e)}"}
